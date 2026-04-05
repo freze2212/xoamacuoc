@@ -1,0 +1,16 @@
+export const deleteCodeTheme = {
+  accent: "#ff1414",
+  accentStrong: "#ff2a2a",
+  accentCyan: "#ff5500",
+  accentAmber: "#ffaa00",
+  accentPink: "#ff0080",
+  accentSoft: "rgba(255, 20, 20, 0.25)",
+  accentBorder: "rgba(255, 20, 20, 0.4)",
+  textPrimary: "#ff6666",
+  textSecondary: "#ff3333",
+  textMuted: "#cc0000",
+  panelBg: "rgba(25, 0, 0, 0.85)",
+  panelInnerBg: "rgba(35, 0, 0, 0.7)",
+  buttonText: "#0a0000",
+  shadow: "0 0 28px rgba(255, 20, 20, 0.2)",
+} as const;
