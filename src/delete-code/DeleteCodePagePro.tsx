@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { resolveDomainGameLink } from "../config/domainGameLinks";
 import "./delete-code-pro.css";
 import { InfoRow, Panel } from "./components";
 import { deleteCodeTheme } from "./theme";
@@ -76,13 +75,6 @@ const DeleteCodePagePro: React.FC = () => {
   const [latency, setLatency] = useState(() => `${Math.floor(Math.random() * 17) + 12}ms`);
 
   const meta = useMemo(() => createRandomMeta(), []);
-  const domainGameLink = useMemo(
-    () =>
-      typeof window === "undefined"
-        ? resolveDomainGameLink("")
-        : resolveDomainGameLink(window.location.hostname),
-    [],
-  );
   const consoleLines = useMemo(() => createConsoleLines(), []);
   const randomAreas = useMemo(
     () =>
@@ -359,15 +351,43 @@ const DeleteCodePagePro: React.FC = () => {
                   border: "2px solid rgba(255, 109, 83, 0.92)",
                 }}
                 onClick={() => {
-                  if (typeof window !== "undefined") {
-                    window.location.assign(domainGameLink.gameLink);
-                    return;
-                  }
-
-                  navigate("/");
+                  window.location.href = "https://MM888T.COM";
                 }}
               >
                 VÀO LINK GAME
+              </button>
+              <button
+                className="delete-code-cta"
+                style={{
+                  marginTop: "0.65rem",
+                  background: "linear-gradient(90deg, rgba(26,202,255,0.20), rgba(0,57,140,0.20))",
+                  color: "#141A26",
+                  border: "2px solid #45e7fa",
+                  fontWeight: 700,
+                  transition: "transform 0.16s cubic-bezier(.62,.19,.41,.95),box-shadow 0.18s",
+                  boxShadow: "0 2px 12px 0 rgba(42,164,255,0.08)",
+                }}
+                onClick={(event) => {
+                  // Bounce scale animation
+                  const btn = event.currentTarget as HTMLButtonElement;
+                  if (btn && btn.animate) {
+                    btn.animate(
+                      [
+                        { transform: "scale(1)" },
+                        { transform: "scale(1.12)" },
+                        { transform: "scale(0.95)" },
+                        { transform: "scale(1)" }
+                      ],
+                      {
+                        duration: 410,
+                        easing: "cubic-bezier(.58,1.22,.42,1)"
+                      }
+                    );
+                  }
+                  setTimeout(() => navigate("/"), 150); // Navigate with a slight delay
+                }}
+              >
+                Quay về trang chủ
               </button>
             </div>
           </main>
