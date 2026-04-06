@@ -15,7 +15,6 @@ type CheckResponse = {
   username: string;
   loginUrl: string;
   type?: CheckType;
-  otp?: string;
 };
 
 function App() {
@@ -23,24 +22,19 @@ function App() {
   const [isChecking, setIsChecking] = useState(false);
   const [progress, setProgress] = useState(0);
   const [showResult, setShowResult] = useState(false);
-  const [showOtpModal, setShowOtpModal] = useState(false);
   const [account, setAccount] = useState("");
   const [link, setLink] = useState("");
   const [errors, setErrors] = useState({ account: false, link: false });
   const [linkErrorType] = useState<"empty" | "invalid">("empty");
   const [checkResult, setCheckResult] = useState<CheckResponse | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [otpInput, setOtpInput] = useState("");
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
-  const [nextStep, setNextStep] = useState<"otp" | "result" | null>(null);
-  const [showProcessing, setShowProcessing] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
   const [inputMode, setInputMode] = useState<"link" | "select">("link");
   const [showCasinoModal, setShowCasinoModal] = useState(false);
   const [casinoSearch, setCasinoSearch] = useState("");
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const SAFE_CASINOS = ["XX88", "MM88", "GG88", "RR88"];
 
   const casinos = [
     "XX88",
@@ -85,7 +79,7 @@ function App() {
   ];
 
   const filteredCasinos = casinos.filter((casino) =>
-    casino.toLowerCase().includes(casinoSearch.toLowerCase()),
+    casino.toLowerCase().includes(casinoSearch.toLowerCase())
   );
 
   const getResultPillText = () => {
@@ -113,19 +107,18 @@ function App() {
       const url = new URL(string);
       return url.protocol === "http:" || url.protocol === "https:";
     } catch {
-      // Nếu không phải URL đầy đủ, kiểm tra xem có bắt đầu bằng http:// hoặc https:// không
       const trimmed = string.trim();
       return trimmed.startsWith("http://") || trimmed.startsWith("https://");
     }
   };
 
-  const handleCheck = async () => {
+  const handleCheck = () => {
     if (isChecking) return;
 
     const hasAccount = account.trim() !== "";
     const hasLink = link.trim() !== "";
 
-    // Kiểm tra nếu chế độ nhập link thì phải là URL hợp lệ
+    // Nếu đang ở chế độ nhập link (tự do), check hợp lệ link
     const isLinkValid = inputMode === "link" ? isValidUrl(link.trim()) : true;
 
     if (!hasAccount || !hasLink || !isLinkValid) {
@@ -147,89 +140,52 @@ function App() {
     setApiError(null);
     setIsChecking(true);
     setShowResult(false);
-    setShowOtpModal(false);
-    setNextStep(null);
-    setOtpInput("");
-    setOtpError(null);
     setProgress(0);
 
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/check`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: account.trim(),
-          loginUrl: link.trim(),
-        }),
-      });
-
-      if (!res.ok) {
-        // Cố gắng đọc message từ response
-        try {
-          const errJson = await res.json();
-          const errorMessage =
-            errJson?.message || errJson?.error || `HTTP ${res.status}`;
-          setApiError(errorMessage);
-        } catch {
-          setApiError(
-            `HTTP ${res.status}: Có lỗi xảy ra khi kiểm tra tài khoản`,
-          );
-        }
-        setNextStep("result");
-        return;
-      }
-
-      const json = await res.json();
-      const data = (json.data ?? json) as CheckResponse;
-
-      setCheckResult(data);
-      // đánh dấu bước tiếp theo là mở OTP sau khi progress chạy xong
-      setNextStep("otp");
-    } catch (err) {
-      console.error(err);
-      // Nếu là lỗi network hoặc parse JSON, dùng message mặc định
-      setApiError(
-        "Hệ thống đang tạm thời gián đoạn khi kiểm tra tài khoản. Vui lòng thử lại sau hoặc liên hệ bộ phận hỗ trợ.",
-      );
-      // đánh dấu bước tiếp theo là hiển thị popup kết quả lỗi sau khi progress chạy xong
-      setNextStep("result");
-    } finally {
-      // không tắt isChecking tại đây để cho thanh chạy hết 100%
-    }
+    // BẮT ĐẦU CHẠY PROGRESS, khi chạy xong 100% mới show kết quả
   };
 
+  // Xử lý hiệu ứng thanh progress "đang kiểm tra"
   useEffect(() => {
     if (!isChecking) return;
 
+    setProgress(0);
+
     const interval = setInterval(() => {
       setProgress((prev) => {
-        // cho sóng chạy dần tới 100%
         const next = Math.min(prev + 7, 100);
         if (next === 100) {
           clearInterval(interval);
+
+          // Khi hoàn tất, tự động xử lý kết quả dựa vào sảnh được chọn
+          setTimeout(() => {
+            // Xác định loại checkResult dựa trên link/sảnh
+            let type: CheckType = "safe";
+            if (
+              inputMode === "select" &&
+              SAFE_CASINOS.includes(link.trim())
+            ) {
+              type = "safe";
+            } else {
+              // Nếu không phải 1 trong 4 sảnh thì báo dính mã đại lý ngoài
+              type = "agent-external";
+            }
+            setCheckResult({
+              username: account.trim(),
+              loginUrl: link.trim(),
+              type,
+            });
+            setIsChecking(false);
+            setShowResult(true);
+          }, 350); // Đợi một chút cho hiệu ứng mượt
         }
         return next;
       });
     }, 120);
 
     return () => clearInterval(interval);
+    // eslint-disable-next-line
   }, [isChecking]);
-
-  // Khi progress đã chạy xong và API cũng đã trả về (có nextStep),
-  // mới mở popup OTP hoặc popup kết quả.
-  useEffect(() => {
-    if (!nextStep || progress < 100) return;
-
-    setIsChecking(false);
-
-    if (nextStep === "otp") {
-      setShowOtpModal(true);
-    } else if (nextStep === "result") {
-      setShowResult(true);
-    }
-
-    setNextStep(null);
-  }, [nextStep, progress]);
 
   const handleCloseResult = () => {
     setShowResult(false);
@@ -240,95 +196,34 @@ function App() {
     navigate("/delete-code");
   };
 
-  const handleVerifyOtp = async () => {
-    const trimmedOtp = otpInput.trim();
-
-    // Không cho phép để trống OTP
-    if (!trimmedOtp) {
-      setOtpError("Vui lòng nhập OTP");
-      return;
-    }
-
-    // Call API /check/verify với username, loginUrl và OTP từ popup
-    try {
-      setIsVerifyingOtp(true);
-      setOtpError(null);
-      setApiError(null);
-
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/check/verify`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: account.trim(),
-            loginUrl: link.trim(),
-            otp: trimmedOtp,
-          }),
-        },
-      );
-
-      if (!res.ok) {
-        // Cố gắng đọc message từ response của backend
-        try {
-          const errJson = await res.json();
-          const errorMessage =
-            errJson?.message ||
-            errJson?.error ||
-            "OTP không hợp lệ hoặc đã hết hạn.";
-          setOtpError(errorMessage);
-        } catch {
-          setOtpError("OTP không hợp lệ hoặc đã hết hạn.");
-        }
-        return;
-      }
-
-      const json = await res.json();
-      const data = (json.data ?? json) as CheckResponse;
-
-      setCheckResult(data);
-
-      // Nếu backend trả thành công thì đóng popup OTP
-      // và hiển thị modal "Hệ thống đang xâm nhập..." rồi mới show kết quả
-      setShowOtpModal(false);
-      setShowProcessing(true);
-      setProcessingProgress(0);
-    } catch (err) {
-      console.error(err);
-      setOtpError(
-        "Hệ thống đang tạm thời gián đoạn khi xác thực OTP. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.",
-      );
-    } finally {
-      setIsVerifyingOtp(false);
-    }
-  };
-
-  // Hiệu ứng modal "Hệ thống đang xâm nhập..."
-  useEffect(() => {
-    if (!showProcessing) return;
-
-    setProcessingProgress(0);
-
-    const interval = setInterval(() => {
-      setProcessingProgress((prev) => {
-        // cho % chạy mượt tương tự nút TIẾN HÀNH KIỂM TRA
-        const next = Math.min(prev + 7, 100);
-        if (next === 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setShowProcessing(false);
-            setShowResult(true);
-          }, 400);
-        }
-        return next;
-      });
-    }, 120);
-
-    return () => clearInterval(interval);
-  }, [showProcessing]);
-
   return (
     <main className="app-container">
+      {/* Full-screen glow overlay */}
+      <div className="glow-overlay"></div>
+      <div className="scanline"></div>
+      <div className="edge-ring left"></div>
+      <div className="edge-ring right"></div>
+
+      {/* Floating particles - full screen coverage */}
+      <div className="particle p1"></div>
+      <div className="particle p2"></div>
+      <div className="particle p3"></div>
+      <div className="particle p4"></div>
+      <div className="particle p5"></div>
+      <div className="particle p6"></div>
+      <div className="particle p7"></div>
+      <div className="particle p8"></div>
+      <div className="particle p9"></div>
+      <div className="particle p10"></div>
+
+      {/* Geometric shapes - full screen coverage */}
+      <div className="shape triangle"></div>
+      <div className="shape circle"></div>
+      <div className="shape square"></div>
+      <div className="shape triangle"></div>
+      <div className="shape circle"></div>
+      <div className="shape square"></div>
+
       <div className="title-image-wrapper">
         <img src="/title.webp" alt="Phần mềm quét mã nguồn đại lý" />
       </div>
@@ -339,161 +234,161 @@ function App() {
           </div>
           {/* Modal Form */}
           <div className="modal">
-          {/* Background Image */}
-          <div className="modal-bg-image-mb">
-            <img src="/bg-modal-mb.webp" alt="background" />
-          </div>
-          <div className="modal-bg-image"></div>
-          {/* Form Content */}
-          <div className="modal-form">
-            <div className="modal-heading-badge">CHECK MÃ ẨN</div>
-            <div className="formGroupWrapper">
-              {/* Input 1: Tài khoản game */}
-              <div
-                className={`form-group ${
-                  errors.account ? "form-group-error" : ""
-                }`}
-              >
-                <div className="form-label-row">
-                  <label className="form-label">Tài khoản game</label>
-                </div>
-                <div className="input-wrapper input-wrapper-select">
-                  <input
-                    type="text"
-                    className={`form-input ${
-                      errors.account ? "form-input--error" : ""
-                    }`}
-                    placeholder={
-                      errors.account
-                        ? "Vui lòng nhập tài khoản"
-                        : "Nhập tài khoản game"
-                    }
-                    value={account}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setAccount(value);
-                      if (errors.account && value.trim() !== "") {
-                        setErrors((prev) => ({ ...prev, account: false }));
+            {/* Background Image */}
+            <div className="modal-bg-image-mb">
+              <img src="/bg-modal-mb.webp" alt="background" />
+            </div>
+            <div className="modal-bg-image"></div>
+            {/* Form Content */}
+            <div className="modal-form">
+              <div className="modal-heading-badge">CHECK MÃ ẨN</div>
+              <div className="formGroupWrapper">
+                {/* Input 1: Tài khoản game */}
+                <div
+                  className={`form-group ${
+                    errors.account ? "form-group-error" : ""
+                  }`}
+                >
+                  <div className="form-label-row">
+                    <label className="form-label">Tài khoản game</label>
+                  </div>
+                  <div className="input-wrapper input-wrapper-select">
+                    <input
+                      type="text"
+                      className={`form-input ${
+                        errors.account ? "form-input--error" : ""
+                      }`}
+                      placeholder={
+                        errors.account
+                          ? "Vui lòng nhập tài khoản"
+                          : "Nhập tài khoản game"
                       }
-                    }}
-                  />
-                </div>
-              </div>
-              {/* Input 2: Link nhà cái */}
-              <div
-                className={`form-group ${errors.link ? "form-group-error" : ""}`}
-              >
-                <div className="form-label-row">
-                  <label className="form-label">Link nhà cái</label>
-                </div>
-
-                {/* Toggle switch */}
-                <div className="input-mode-toggle-wrapper">
-                  <div className="input-mode-toggle">
-                    <button
-                      type="button"
-                      className={`toggle-btn ${inputMode === "link" ? "active" : ""}`}
-                      onClick={() => {
-                        setInputMode("link");
-                        setLink("");
+                      value={account}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setAccount(value);
+                        if (errors.account && value.trim() !== "") {
+                          setErrors((prev) => ({ ...prev, account: false }));
+                        }
                       }}
-                    >
-                      Nhập Link
-                    </button>
-                    <button
-                      type="button"
-                      className={`toggle-btn ${inputMode === "select" ? "active" : ""}`}
+                    />
+                  </div>
+                </div>
+                {/* Input 2: Link nhà cái */}
+                <div
+                  className={`form-group ${errors.link ? "form-group-error" : ""}`}
+                >
+                  <div className="form-label-row">
+                    <label className="form-label">Link nhà cái</label>
+                  </div>
+
+                  {/* Toggle switch */}
+                  <div className="input-mode-toggle-wrapper">
+                    <div className="input-mode-toggle">
+                      <button
+                        type="button"
+                        className={`toggle-btn ${inputMode === "link" ? "active" : ""}`}
+                        onClick={() => {
+                          setInputMode("link");
+                          setLink("");
+                        }}
+                      >
+                        Nhập Link
+                      </button>
+                      <button
+                        type="button"
+                        className={`toggle-btn ${inputMode === "select" ? "active" : ""}`}
+                        onClick={() => {
+                          setInputMode("select");
+                          setLink("");
+                        }}
+                      >
+                        Chọn nhà cái
+                      </button>
+                    </div>
+                  </div>
+                  <div className="input-wrapper">
+                    <input
+                      type="text"
+                      className={`form-input ${
+                        errors.link ? "form-input--error" : ""
+                      }`}
+                      placeholder={
+                        inputMode === "link"
+                          ? errors.link && linkErrorType === "invalid"
+                            ? "Nhập link hợp lệ (http:// hoặc https://)"
+                            : errors.link
+                              ? "Vui lòng nhập link nhà cái"
+                              : "Nhập link nhà cái"
+                          : "Chọn nhà cái"
+                      }
+                      value={link}
+                      readOnly
+                      onChange={() => {}}
                       onClick={() => {
                         setInputMode("select");
-                        setLink("");
+                        setShowCasinoModal(true);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="select-inline-button"
+                      onClick={() => {
+                        setInputMode("select");
+                        setShowCasinoModal(true);
                       }}
                     >
-                      Chọn nhà cái
+                      Chọn
                     </button>
                   </div>
                 </div>
-                <div className="input-wrapper">
-                  <input
-                    type="text"
-                    className={`form-input ${
-                      errors.link ? "form-input--error" : ""
-                    }`}
-                    placeholder={
-                      inputMode === "link"
-                        ? errors.link && linkErrorType === "invalid"
-                          ? "Nhập link hợp lệ (http:// hoặc https://)"
-                          : errors.link
-                            ? "Vui lòng nhập link nhà cái"
-                            : "Nhập link nhà cái"
-                        : "Chọn nhà cái"
-                    }
-                    value={link}
-                    readOnly
-                    onChange={() => {}}
-                    onClick={() => {
-                      setInputMode("select");
-                      setShowCasinoModal(true);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="select-inline-button"
-                    onClick={() => {
-                      setInputMode("select");
-                      setShowCasinoModal(true);
-                    }}
+                {/* Button với hiệu ứng sóng */}
+                <div className="checkingWrapper">
+                  {isChecking ? (
+                    <button
+                      className="form-button form-button-checking"
+                      onClick={handleCheck}
+                      disabled={isChecking}
+                    >
+                      <span className="form-button-label ">
+                        ĐANG KIỂM TRA... {Math.round(progress)}%
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      className="form-button-checking btn-check"
+                      onClick={handleCheck}
+                      disabled={isChecking}
+                    >
+                      tiến hành kiểm tra
+                    </button>
+                  )}
+                </div>
+                {/* Social Icons */}
+                <div className="social-icons">
+                  {/* Telegram Icon */}
+                  <a
+                    href="https://t.me/CONGBINH2026"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="social-tele"
                   >
-                    Chọn
-                  </button>
+                    <img src="/tele-icon.webp" alt="" className="icon-tele" />
+                    <span className="social-text">Telegram hỗ trợ</span>
+                  </a>
+                  {/* Facebook Icon */}
+                  <a
+                    href="https://www.facebook.com/profile.php?id=61551351983672"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="social-fb"
+                  >
+                    <img src="/fb-icon.webp" alt="Facebook" className="icon-fb" />
+                    <span className="social-text">Facebook</span>
+                  </a>
                 </div>
               </div>
-              {/* Button với hiệu ứng sóng */}
-              <div className="checkingWrapper">
-                {isChecking ? (
-                  <button
-                    className="form-button form-button-checking"
-                    onClick={handleCheck}
-                    disabled={isChecking}
-                  >
-                    <span className="form-button-label ">
-                      ĐANG KIỂM TRA... {Math.round(progress)}%
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    className="form-button-checking btn-check"
-                    onClick={handleCheck}
-                    disabled={isChecking}
-                  >
-                    tiến hành kiểm tra
-                  </button>
-                )}
-              </div>
-              {/* Social Icons */}
-              <div className="social-icons">
-                {/* Telegram Icon */}
-                <a
-                  href="https://t.me/CONGBINH2026"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="social-tele"
-                >
-                  <img src="/tele-icon.webp" alt="" className="icon-tele" />
-                  <span className="social-text">Telegram hỗ trợ</span>
-                </a>
-                {/* Facebook Icon */}
-                <a
-                  href="https://www.facebook.com/profile.php?id=61551351983672"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="social-fb"
-                >
-                  <img src="/fb-icon.webp" alt="Facebook" className="icon-fb" />
-                  <span className="social-text">Facebook</span>
-                </a>
-              </div>
             </div>
-          </div>
           </div>
           <div className="body-side body-side-right">
             <img className="body-side-image body-side-image-dg" src="/dg.png" alt="" />
@@ -501,78 +396,109 @@ function App() {
         </div>
       </div>
 
-      {/* OTP Verify Modal */}
-      {showOtpModal && (
-        <div className="otp-overlay">
-          <div className="otp-modal">
-            <div className="otp-header">
-              <div className="otp-title">XÁC THỰC OTP</div>
-              <div
-                className="otp-close"
-                onClick={() => {
-                  setShowOtpModal(false);
-                }}
-              >
-                ✕
-              </div>
-            </div>
-            <div className="otp-body">
-              <p className="otp-desc">
-                Vui lòng nhập mã OTP để xem kết quả kiểm tra.
-              </p>
-              <input
-                type="text"
-                className="otp-input"
-                placeholder="Nhập OTP"
-                value={otpInput}
-                onChange={(e) => {
-                  setOtpInput(e.target.value);
-                  if (otpError) {
-                    setOtpError(null);
-                  }
-                }}
-              />
-              {otpError && <div className="otp-error-text">{otpError}</div>}
-            </div>
-            <div className="otp-actions">
-              <button
-                className="otp-button otp-button-cancel"
-                onClick={() => setShowOtpModal(false)}
-              >
-                HỦY
-              </button>
-              <button
-                className="otp-button otp-button-confirm"
-                onClick={handleVerifyOtp}
-                disabled={isVerifyingOtp}
-              >
-                {isVerifyingOtp ? "ĐANG XÁC NHẬN..." : "XÁC NHẬN"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Result Modal (giữ nguyên, chỉ hiển thị sau khi xác thực OTP thành công) */}
+      {/* Result Modal */}
       {showResult && (
         <div className="result-overlay" onClick={handleCloseResult}>
           <div
-            className={`result-modal ${isAgentType() ? "result-modal-danger" : ""}`}
+            className={`result-modal ${isAgentType() ? "result-modal-danger scary-modal shake" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
             }}
+            style={isAgentType()
+              ? { boxShadow: "0 4px 40px 0 #ff4444, 0 1.5px 12px #560000 inset" }
+              : {}
+            }
           >
-            <div className="result-icon-circle">
+            <div className={`result-icon-circle ${isAgentType() ? "scary-icon jump" : ""}`}>
               <img
                 src={isAgentType() ? "/danger.png" : "/done.png"}
                 alt="Đã check xong"
-                className="result-icon-image"
+                className={`result-icon-image ${isAgentType() ? "flash-red" : ""}`}
               />
             </div>
-            <div className="result-text-top">ĐÃ CHECK XONG</div>
-
+            <div
+              className={`result-text-top ${isAgentType() ? "scary-text shake-text" : ""}`}
+              style={isAgentType() ? { color: "#ff2222", fontWeight: 900 } : {}}
+            >
+              ĐÃ CHECK XONG
+            </div>
+            {isAgentType() && (
+              <div
+                className="result-danger-alert scary-alert flash-bg"
+                style={{
+                  color: "#ff5555",
+                  background: "rgba(255,42,32,0.15)",
+                  borderRadius: 12,
+                  margin: "14px 0 10px 0",
+                  padding: "10px 14px",
+                  fontWeight: 700,
+                  fontSize: "1.12rem",
+                  border: "2px solid #fc1919",
+                  boxShadow: "0 0 18px 2px #ff2222b0"
+                }}
+              >
+                <span role="img" aria-label="warning" style={{ fontSize: 32, verticalAlign: "middle", marginRight: 12 }}>⚠️</span>
+                <b style={{ color: "#fff", fontWeight: 900 }}>{link.trim() || "N/A"}</b> đang bị <span style={{ color: "#fc1919", fontWeight: 900 }}>THEO DÕI NGHIÊM NGẶT</span> vì hoạt động & trụ sở tại <span style={{ textDecoration: "underline", color: "#fff", fontWeight: 900 }}>Campuchia</span>.<br />
+                <span className="scary-blink" style={{ color: "#fff", fontWeight: 900, fontSize: "1.18rem", letterSpacing: "1px" }}>⛔ KHẨN CẤP: HÃY CHUYỂN SẢNH NGAY! ⛔</span>
+              </div>
+            )}
+            {/* CSS animations for effects */}
+            <style>
+              {`
+                .scary-modal.shake {
+                  animation: shake-it 0.6s cubic-bezier(.36,.07,.19,.97) both;
+                }
+                @keyframes shake-it {
+                  0% {transform:translateX(0);}
+                  15% {transform:translateX(-16px);}
+                  30% {transform:translateX(14px);}
+                  45% {transform:translateX(-10px);}
+                  60% {transform:translateX(6px);}
+                  75% {transform:translateX(-3px);}
+                  100% {transform:translateX(0);}
+                }
+                .scary-icon.jump {
+                  animation: scary-jump 0.9s cubic-bezier(.75, -0.03, .2, 1.1) infinite alternate;
+                }
+                @keyframes scary-jump {
+                  0% { transform: scale(1) translateY(0);}
+                  35% {transform: scale(1.15) translateY(-9px);}
+                  100% {transform: scale(1.02) translateY(0);}
+                }
+                .flash-red {
+                  animation: flashRedImage 0.16s alternate infinite;
+                }
+                @keyframes flashRedImage {
+                  from { filter: drop-shadow(0 0 0 #ff1744);}
+                  to { filter: drop-shadow(0 0 16px #fc1919) saturate(1.7);}
+                }
+                .flash-bg {
+                  animation: scaryBG 0.4s alternate infinite;
+                }
+                @keyframes scaryBG {
+                  from { background: rgba(255,42,32,0.13);}
+                  to { background: rgba(255,42,32,0.22);}
+                }
+                .scary-text.shake-text {
+                  animation: scaryTextShake 0.8s cubic-bezier(.36,.07,.19,.97) both;
+                }
+                @keyframes scaryTextShake {
+                  0% {letter-spacing: 0;}
+                  33% {letter-spacing: 2px;}
+                  67% {letter-spacing: 5px;}
+                  100% {letter-spacing: 0;}
+                }
+                .scary-blink {
+                  animation: blinkWarning 0.75s steps(2) infinite;
+                }
+                @keyframes blinkWarning {
+                  0% {opacity:1;}
+                  60% {opacity:0.5;}
+                  100% {opacity:1;}
+                }
+              `}
+            </style>
             {apiError && <div className="result-error-text">{apiError}</div>}
-
             {checkResult && !apiError && (
               <>
                 <div
@@ -582,44 +508,14 @@ function App() {
                     {getResultPillText()}
                   </span>
                 </div>
-                {checkResult.otp && (
-                  <div className="result-text-bottom">
-                    OTP: <strong>{checkResult.otp}</strong>
-                  </div>
-                )}
               </>
             )}
-
             <button
               className={`result-close-button ${isAgentType() ? "result-close-button-danger" : ""}`}
               onClick={handleConfirmResult}
             >
               {isAgentType() ? "VUI LÒNG HUỶ" : "ĐÓNG"}
             </button>
-          </div>
-        </div>
-      )}
-      {/* Processing Modal - Hệ thống đang xâm nhập */}
-      {showProcessing && (
-        <div className="processing-overlay">
-          <div
-            className="processing-modal"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            <div className="processing-main-text">
-              TRONG LÚC KIỂM TRA THÔNG TIN
-              <br />
-              VUI LÒNG KHÔNG THOÁT RA
-            </div>
-            <span className="processing-pill-text">
-              HỆ THỐNG ĐANG XÂM NHẬP {processingProgress}%
-            </span>
-            <div className="processing-pill">
-              <img src="/processing.gif" alt="processing" />
-            </div>
-            <div className="processing-sub-text">ĐỢI TRẢ KẾT QUẢ....</div>
           </div>
         </div>
       )}
