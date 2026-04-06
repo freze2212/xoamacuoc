@@ -126,7 +126,7 @@ function App() {
       if (!hasAccount) {
         message = "Vui lòng nhập tài khoản game";
       } else if (!hasLink) {
-        message = "Vui lòng nhập link nhà cái";
+        message = "Vui lòng nhập link cổng game";
       } else if (inputMode === "link" && !isLinkValid) {
         message = "Vui lòng nhập link hợp lệ (http:// hoặc https://)";
       }
@@ -279,7 +279,7 @@ function App() {
                   className={`form-group ${errors.link ? "form-group-error" : ""}`}
                 >
                   <div className="form-label-row">
-                    <label className="form-label">Link nhà cái</label>
+                    <label className="form-label">Link cổng game</label>
                   </div>
 
                   {/* Toggle switch */}
@@ -303,7 +303,7 @@ function App() {
                           setLink("");
                         }}
                       >
-                        Chọn nhà cái
+                        Chọn cổng game
                       </button>
                     </div>
                   </div>
@@ -318,9 +318,9 @@ function App() {
                           ? errors.link && linkErrorType === "invalid"
                             ? "Nhập link hợp lệ (http:// hoặc https://)"
                             : errors.link
-                              ? "Vui lòng nhập link nhà cái"
-                              : "Nhập link nhà cái"
-                          : "Chọn nhà cái"
+                              ? "Vui lòng nhập link cổng game"
+                              : "Nhập link cổng game"
+                          : "Chọn cổng game"
                       }
                       value={link}
                       readOnly
@@ -533,7 +533,7 @@ function App() {
             }}
           >
             <div className="casino-modal-header">
-              <h2 className="casino-modal-title">Chọn nhà cái</h2>
+              <h2 className="casino-modal-title">Chọn cổng game</h2>
               <button
                 className="casino-modal-close"
                 onClick={() => setShowCasinoModal(false)}
@@ -546,7 +546,7 @@ function App() {
               <input
                 type="text"
                 className="casino-search-input"
-                placeholder="Tìm kiếm nhà cái..."
+                placeholder="Tìm kiếm cổng game..."
                 value={casinoSearch}
                 onChange={(e) => setCasinoSearch(e.target.value)}
                 autoFocus
@@ -573,7 +573,7 @@ function App() {
                   </button>
                 ))
               ) : (
-                <div className="casino-no-results">Không tìm thấy nhà cái</div>
+                <div className="casino-no-results">Không tìm thấy cổng game</div>
               )}
             </div>
           </div>

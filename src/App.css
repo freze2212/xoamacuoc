@@ -192,7 +192,7 @@
 }
 
 .formGroupWrapper .form-group:nth-child(2) .form-label::after {
-  content: "CHỌN NHÀ CÁI";
+  content: "CHỌN CỔNG GAME";
   font-size: 24px;
 }
 
