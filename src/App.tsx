@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./AppPro.css";
+import { resolveDomainSocialLinks } from "./config/domainSocialLinks";
 
 type CheckType =
   | "safe"
@@ -35,6 +36,10 @@ function App() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const SAFE_CASINOS = ["XX88", "MM88", "GG88", "RR88"];
+
+  const socialLinks = useMemo(() => {
+    return resolveDomainSocialLinks(window.location.hostname);
+  }, []);
 
   const casinos = [
     "XX88",
@@ -368,7 +373,7 @@ function App() {
                 <div className="social-icons">
                   {/* Telegram Icon */}
                   <a
-                    href="https://t.me/CONGBINH2026"
+                    href={socialLinks.telegramLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="social-tele"
@@ -378,7 +383,7 @@ function App() {
                   </a>
                   {/* Facebook Icon */}
                   <a
-                    href="https://www.facebook.com/profile.php?id=61551351983672"
+                    href={socialLinks.facebookLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="social-fb"
